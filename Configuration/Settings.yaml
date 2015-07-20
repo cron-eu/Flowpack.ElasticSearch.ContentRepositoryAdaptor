@@ -46,8 +46,9 @@ TYPO3:
         'TYPO3\Media\Domain\Model\Video':
           elasticSearchMapping: '' # deliberately don't map or index this
 
-        'TYPO3\Media\Domain\Model\ImageVariant':
+        'TYPO3\Media\Domain\Model\ImageInterface':
           elasticSearchMapping: '' # deliberately don't map or index this
+          indexing: ''
 
         'references':
           elasticSearchMapping:
