@@ -221,7 +221,7 @@ class NodeIndexCommandController extends CommandController {
 	 */
 	protected function indexWorkspace($workspaceName) {
 		$combinations = $this->calculateDimensionCombinations();
-		if ($combinations === array()) {
+		if ($combinations === []) {
 			$this->indexWorkspaceWithDimensions($workspaceName);
 		} else {
 			foreach ($combinations as $combination) {
@@ -235,13 +235,15 @@ class NodeIndexCommandController extends CommandController {
 	 * @param array $dimensions
 	 * @return void
 	 */
-	protected function indexWorkspaceWithDimensions($workspaceName, array $dimensions = array()) {
-		$context = $this->contextFactory->create(array('workspaceName' => $workspaceName, 'dimensions' => $dimensions));
+	protected function indexWorkspaceWithDimensions($workspaceName, array $dimensions = []) {
+		$context = $this->contextFactory->create(['workspaceName' => $workspaceName, 'dimensions' => $dimensions]);
 		$rootNode = $context->getRootNode();
 
+		$this->outputLine('processing workspace: %s', [$workspaceName]);
+		$this->output->progressStart($this->countAllNodes($rootNode));
 		$this->traverseNodes($rootNode);
 
-		if ($dimensions === array()) {
+		if ($dimensions === []) {
 			$this->outputLine('Workspace "' . $workspaceName . '" without dimensions done. (Indexed ' . $this->indexedNodes . ' nodes)');
 		} else {
 			$this->outputLine('Workspace "' . $workspaceName . '" and dimensions "' . json_encode($dimensions) . '" done. (Indexed ' . $this->indexedNodes . ' nodes)');
@@ -249,6 +251,22 @@ class NodeIndexCommandController extends CommandController {
 
 		$this->countedIndexedNodes = $this->countedIndexedNodes + $this->indexedNodes;
 		$this->indexedNodes = 0;
+
+		$this->output->progressFinish();
+	}
+
+	/**
+	 * Count all nodes matching the filter criteria for processing
+	 *
+	 * @param \TYPO3\TYPO3CR\Domain\Model\NodeInterface $currentNode
+	 *
+	 * @return int count
+	 */
+	private function countAllNodes(\TYPO3\TYPO3CR\Domain\Model\NodeInterface $currentNode) {
+		$count = (!$this->nodeTypeFilter || $currentNode->getNodeType()->isOfType($this->nodeTypeFilter)) ? 1 : 0;
+		// recurse
+		foreach ($currentNode->getChildNodes() as $childNode) {	$count += $this->countAllNodes($childNode);	}
+		return $count;
 	}
 
 	/**
@@ -264,6 +282,7 @@ class NodeIndexCommandController extends CommandController {
 		if (!$this->nodeTypeFilter || $currentNode->getNodeType()->isOfType($this->nodeTypeFilter)) {
 			$this->nodeIndexingManager->indexNode($currentNode);
 			$this->indexedNodes++;
+			$this->output->progressAdvance();
 		}
 
 		foreach ($currentNode->getChildNodes() as $childNode) {
@@ -278,9 +297,9 @@ class NodeIndexCommandController extends CommandController {
 	protected function calculateDimensionCombinations() {
 		$dimensionPresets = $this->contentDimensionPresetSource->getAllPresets();
 
-		$dimensionValueCountByDimension = array();
+		$dimensionValueCountByDimension = [];
 		$possibleCombinationCount = 1;
-		$combinations = array();
+		$combinations = [];
 
 		foreach ($dimensionPresets as $dimensionName => $dimensionPreset) {
 			if (isset($dimensionPreset['presets']) && !empty($dimensionPreset['presets'])) {
@@ -292,7 +311,7 @@ class NodeIndexCommandController extends CommandController {
 		foreach ($dimensionPresets as $dimensionName => $dimensionPreset) {
 			for ($i = 0; $i < $possibleCombinationCount; $i++) {
 				if (!isset($combinations[$i]) || !is_array($combinations[$i])) {
-					$combinations[$i] = array();
+					$combinations[$i] = [];
 				}
 
 				$currentDimensionCurrentPreset = current($dimensionPresets[$dimensionName]['presets']);
