@@ -42,6 +42,12 @@ TYPO3:
             format: 'date_time_no_millis'
             include_in_all: false
 
+        DateTime:
+          elasticSearchMapping:
+            type: date
+            format: 'date_time_no_millis'
+            include_in_all: false
+            indexing: '${value ? Date.format(value, "Y-m-d\TH:i:sP") : null}'
 
         'TYPO3\Media\Domain\Model\Video':
           elasticSearchMapping: '' # deliberately don't map or index this
