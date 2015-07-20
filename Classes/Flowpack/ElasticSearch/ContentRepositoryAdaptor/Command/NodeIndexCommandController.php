@@ -19,6 +19,7 @@ use TYPO3\TYPO3CR\Search\Indexer\NodeIndexingManager;
 /**
  * Provides CLI features for index handling
  *
+ * @property bool debugMode
  * @Flow\Scope("singleton")
  */
 class NodeIndexCommandController extends CommandController {
@@ -162,11 +163,14 @@ class NodeIndexCommandController extends CommandController {
 	 * @param boolean $update if TRUE, do not throw away the index at the start. Should *only be used for development*.
 	 * @param string $workspace name of the workspace which should be indexed
 	 * @param string $type node type filter, e.g. TYPO3.Neos:Document
+	 * @param bool $debug turn on debugging output
 	 * @return void
 	 */
-	public function buildCommand($limit = NULL, $update = FALSE, $workspace = NULL, $type = null) {
+	public function buildCommand($limit = NULL, $update = FALSE, $workspace = NULL, $type = null, $debug = false) {
 
 		$this->nodeTypeFilter = $type;
+
+		$this->debugMode = $debug;
 
 		if ($update === TRUE) {
 			$this->logger->log('!!! Update Mode (Development) active!', LOG_INFO);
@@ -280,6 +284,7 @@ class NodeIndexCommandController extends CommandController {
 		$this->indexedNodes = 0;
 
 		$this->output->progressFinish();
+		if ($this->debugMode) { $this->reportMemoryUsage(); }
 	}
 
 	/**
@@ -296,6 +301,10 @@ class NodeIndexCommandController extends CommandController {
 		return $count;
 	}
 
+	private function reportMemoryUsage() {
+		$this->outputLine(' memory usage: %.1f MB', [memory_get_usage(true) / 1024 / 1024]);
+	}
+
 	/**
 	 * @param \TYPO3\TYPO3CR\Domain\Model\NodeInterface $currentNode
 	 * @return void
@@ -310,6 +319,9 @@ class NodeIndexCommandController extends CommandController {
 			$this->nodeIndexingManager->indexNode($currentNode);
 			$this->indexedNodes++;
 			$this->output->progressAdvance();
+			if ($this->debugMode) {
+				if ($this->indexedNodes % 100 == 0) { $this->reportMemoryUsage(); }
+			}
 		}
 
 		foreach ($currentNode->getChildNodes() as $childNode) {
