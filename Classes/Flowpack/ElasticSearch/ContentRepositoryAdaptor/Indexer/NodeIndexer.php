@@ -118,6 +118,9 @@ class NodeIndexer extends AbstractNodeIndexer {
 	 * @throws \TYPO3\TYPO3CR\Search\Exception\IndexingException
 	 */
 	public function indexNode(NodeInterface $node, $targetWorkspaceName = NULL) {
+
+		if ($node->getNodeType()->getConfiguration('search') === false) return;
+
 		$contextPath = $node->getContextPath();
 
 		if ($this->settings['indexAllWorkspaces'] === FALSE) {
@@ -236,7 +239,8 @@ class NodeIndexer extends AbstractNodeIndexer {
 			$this->updateFulltext($node, $fulltextIndexOfNode, $targetWorkspaceName);
 		}
 
-		$this->logger->log(sprintf('NodeIndexer: Added / updated node %s. ID: %s', $contextPath, $contextPathHash), LOG_DEBUG, NULL, 'ElasticSearch (CR)');
+		$this->logger->log(sprintf('NodeIndexer: Added / updated node [%s] %s. ID: %s',
+			$nodeType->getName(), $contextPath, $contextPathHash), LOG_DEBUG, NULL, 'ElasticSearch (CR)');
 	}
 
 	/**
