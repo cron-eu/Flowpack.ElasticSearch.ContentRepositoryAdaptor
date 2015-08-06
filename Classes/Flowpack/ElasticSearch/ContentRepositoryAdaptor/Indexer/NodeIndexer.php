@@ -109,6 +109,10 @@ class NodeIndexer extends AbstractNodeIndexer {
 		return $index;
 	}
 
+	protected function shouldIndexNode(NodeInterface $node) {
+		return $node->getNodeType()->getConfiguration('search') !== false;
+	}
+
 	/**
 	 * index this node, and add it to the current bulk request.
 	 *
@@ -119,7 +123,7 @@ class NodeIndexer extends AbstractNodeIndexer {
 	 */
 	public function indexNode(NodeInterface $node, $targetWorkspaceName = NULL) {
 
-		if ($node->getNodeType()->getConfiguration('search') === false) return;
+		if (!$this->shouldIndexNode($node)) return;
 
 		$contextPath = $node->getContextPath();
 
@@ -329,6 +333,9 @@ class NodeIndexer extends AbstractNodeIndexer {
 	 * @return string
 	 */
 	public function removeNode(NodeInterface $node) {
+
+		if (!$this->shouldIndexNode($node)) return;
+
 		// TODO: handle deletion from the fulltext index as well
 		$identifier = sha1($node->getContextPath());
 
