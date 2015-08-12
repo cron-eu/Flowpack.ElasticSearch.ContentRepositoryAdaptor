@@ -223,7 +223,7 @@ class NodeIndexer extends AbstractNodeIndexer {
 			}
 
 			$this->updateFulltext($node, $fulltextIndexOfNode, $targetWorkspaceName);
-		} else {
+		} elseif ($this->isIndexingEnabled($node) === true) {
 			$document->store(); // simple indexing mode
 		}
 
