@@ -223,8 +223,6 @@ class NodeIndexer extends AbstractNodeIndexer {
 			}
 
 			$this->updateFulltext($node, $fulltextIndexOfNode, $targetWorkspaceName);
-		} elseif ($this->isIndexingEnabled($node) === true) {
-			$document->store(); // simple indexing mode
 		}
 
 		$this->logger->log(sprintf('NodeIndexer: Added / updated node [%s] %s. ID: %s',
@@ -332,7 +330,7 @@ class NodeIndexer extends AbstractNodeIndexer {
 	 */
 	public function removeNode(NodeInterface $node) {
 
-		if (!$this->shouldIndexNode($node)) return;
+		if ($this->isIndexingEnabled($node) === false) return;
 
 		// TODO: handle deletion from the fulltext index as well
 		$identifier = sha1($node->getContextPath());
