@@ -25,7 +25,6 @@ use TYPO3\TYPO3CR\Search\Indexer\NodeIndexingManager;
 /**
  * Provides CLI features for index handling
  *
- * @property bool debugMode
  * @property \TYPO3\TYPO3CR\Domain\Service\Context context
  * @Flow\Scope("singleton")
  */
@@ -170,14 +169,11 @@ class NodeIndexCommandController extends CommandController {
 	 * @param boolean $update if TRUE, do not throw away the index at the start. Should *only be used for development*.
 	 * @param string $workspace name of the workspace which should be indexed
 	 * @param string $type node type filter, e.g. TYPO3.Neos:Document
-	 * @param bool $debug turn on debugging output
 	 * @return void
 	 */
-	public function buildCommand($limit = NULL, $update = FALSE, $workspace = NULL, $type = null, $debug = false) {
+	public function buildCommand($limit = NULL, $update = FALSE, $workspace = NULL, $type = null) {
 
 		$this->nodeTypeFilter = $type;
-
-		$this->debugMode = $debug;
 
 		if ($update === TRUE) {
 			$this->logger->log('!!! Update Mode (Development) active!', LOG_INFO);
@@ -262,7 +258,7 @@ class NodeIndexCommandController extends CommandController {
 	 */
 	protected function indexWorkspace($workspaceName) {
 		$combinations = $this->calculateDimensionCombinations();
-		if ($combinations === []) {
+		if ($combinations === array()) {
 			$this->indexWorkspaceWithDimensions($workspaceName);
 		} else {
 			foreach ($combinations as $combination) {
@@ -276,7 +272,7 @@ class NodeIndexCommandController extends CommandController {
 	 * @param array $dimensions
 	 * @return void
 	 */
-	protected function indexWorkspaceWithDimensions($workspaceName, array $dimensions = []) {
+	protected function indexWorkspaceWithDimensions($workspaceName, array $dimensions = array()) {
 		$context = $this->contextFactory->create(['workspaceName' => $workspaceName, 'dimensions' => $dimensions]);
 		$this->context = $context;
 		$rootNode = $context->getRootNode();
@@ -296,14 +292,11 @@ class NodeIndexCommandController extends CommandController {
 				$this->indexedNodes++;
 			}
 			$this->output->progressAdvance();
-			if ($this->debugMode) {
-				if ($this->indexedNodes % 100 == 0) { $this->reportMemoryUsage(); }
-			}
 		}
 
 		$this->output->progressFinish();
 
-		if ($dimensions === []) {
+		if ($dimensions === array()) {
 			$this->outputLine('Workspace "' . $workspaceName . '" without dimensions done. (Indexed ' . $this->indexedNodes . ' nodes)');
 		} else {
 			$this->outputLine('Workspace "' . $workspaceName . '" and dimensions "' . json_encode($dimensions) . '" done. (Indexed ' . $this->indexedNodes . ' nodes)');
@@ -311,14 +304,7 @@ class NodeIndexCommandController extends CommandController {
 
 		$this->countedIndexedNodes = $this->countedIndexedNodes + $this->indexedNodes;
 		$this->indexedNodes = 0;
-
-		if ($this->debugMode) { $this->reportMemoryUsage(); }
 	}
-
-	private function reportMemoryUsage() {
-		$this->outputLine(' memory usage: %.1f MB', [memory_get_usage(true) / 1024 / 1024]);
-	}
-
 
 	/**
 	 * @return array
@@ -327,9 +313,9 @@ class NodeIndexCommandController extends CommandController {
 	protected function calculateDimensionCombinations() {
 		$dimensionPresets = $this->contentDimensionPresetSource->getAllPresets();
 
-		$dimensionValueCountByDimension = [];
+		$dimensionValueCountByDimension = array();
 		$possibleCombinationCount = 1;
-		$combinations = [];
+		$combinations = array();
 
 		foreach ($dimensionPresets as $dimensionName => $dimensionPreset) {
 			if (isset($dimensionPreset['presets']) && !empty($dimensionPreset['presets'])) {
@@ -341,7 +327,7 @@ class NodeIndexCommandController extends CommandController {
 		foreach ($dimensionPresets as $dimensionName => $dimensionPreset) {
 			for ($i = 0; $i < $possibleCombinationCount; $i++) {
 				if (!isset($combinations[$i]) || !is_array($combinations[$i])) {
-					$combinations[$i] = [];
+					$combinations[$i] = array();
 				}
 
 				$currentDimensionCurrentPreset = current($dimensionPresets[$dimensionName]['presets']);
