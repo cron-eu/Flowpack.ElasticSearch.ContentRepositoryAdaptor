@@ -109,10 +109,6 @@ class NodeIndexer extends AbstractNodeIndexer {
 		return $index;
 	}
 
-	protected function shouldIndexNode(NodeInterface $node) {
-		return $node->getNodeType()->getConfiguration('search') !== false;
-	}
-
 	/**
 	 * index this node, and add it to the current bulk request.
 	 *
@@ -123,7 +119,7 @@ class NodeIndexer extends AbstractNodeIndexer {
 	 */
 	public function indexNode(NodeInterface $node, $targetWorkspaceName = NULL) {
 
-		if (!$this->shouldIndexNode($node)) return;
+		if ($this->isIndexingEnabled($node) === false) return;
 
 		$contextPath = $node->getContextPath();
 
@@ -227,8 +223,8 @@ class NodeIndexer extends AbstractNodeIndexer {
 			}
 
 			$this->updateFulltext($node, $fulltextIndexOfNode, $targetWorkspaceName);
-		} elseif ($node->getNodeType()->getConfiguration('search') === true) {
-			$document->store();
+		} else {
+			$document->store(); // simple indexing mode
 		}
 
 		$this->logger->log(sprintf('NodeIndexer: Added / updated node [%s] %s. ID: %s',
