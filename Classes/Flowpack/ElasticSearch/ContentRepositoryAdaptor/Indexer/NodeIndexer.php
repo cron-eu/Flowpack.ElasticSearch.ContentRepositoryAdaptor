@@ -507,15 +507,16 @@ class NodeIndexer extends AbstractNodeIndexer {
 	/**
 	 * Check the indexing mode for the node
 	 *
-	 * @param NodeInterface $node
+	 * @param NodeInterface|null $node
 	 *
 	 * @return bool|null bool true if simple indexing is enabled, false if the node should be excluded from
 	 * indexing at all, null if other configuration set
 	 */
-	public static function isIndexingEnabled(NodeInterface $node) {
-		$conf = $node->getNodeType()->getConfiguration('search');
-		if (is_bool($conf)) return $conf;
-
+	public static function isIndexingEnabled($node) {
+		if ($node) {
+			$conf = $node->getNodeType()->getConfiguration('search');
+			if (is_bool($conf)) return $conf;
+		}
 		return null;
 	}
 }
