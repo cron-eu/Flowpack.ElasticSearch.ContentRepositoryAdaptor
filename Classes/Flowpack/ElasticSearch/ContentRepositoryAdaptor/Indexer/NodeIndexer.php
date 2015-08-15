@@ -118,6 +118,9 @@ class NodeIndexer extends AbstractNodeIndexer {
 	 * @throws \TYPO3\TYPO3CR\Search\Exception\IndexingException
 	 */
 	public function indexNode(NodeInterface $node, $targetWorkspaceName = NULL) {
+
+		if ($this->isIndexingEnabled($node) === false) return;
+
 		$contextPath = $node->getContextPath();
 
 		if ($targetWorkspaceName !== NULL) {
@@ -222,7 +225,8 @@ class NodeIndexer extends AbstractNodeIndexer {
 			$this->updateFulltext($node, $fulltextIndexOfNode, $targetWorkspaceName);
 		}
 
-		$this->logger->log(sprintf('NodeIndexer: Added / updated node %s. ID: %s', $contextPath, $contextPathHash), LOG_DEBUG, NULL, 'ElasticSearch (CR)');
+		$this->logger->log(sprintf('NodeIndexer: Added / updated node [%s] %s. ID: %s',
+			$nodeType->getName(), $contextPath, $contextPathHash), LOG_DEBUG, NULL, 'ElasticSearch (CR)');
 	}
 
 	/**
@@ -325,6 +329,9 @@ class NodeIndexer extends AbstractNodeIndexer {
 	 * @return string
 	 */
 	public function removeNode(NodeInterface $node) {
+
+		if ($this->isIndexingEnabled($node) === false) return;
+
 		// TODO: handle deletion from the fulltext index as well
 		$identifier = sha1($node->getContextPath());
 
@@ -475,5 +482,21 @@ class NodeIndexer extends AbstractNodeIndexer {
 		}
 
 		return $indicesToBeRemoved;
+	}
+
+	/**
+	 * Check the indexing mode for the node
+	 *
+	 * @param NodeInterface|null $node
+	 *
+	 * @return bool|null bool true if simple indexing is enabled, false if the node should be excluded from
+	 * indexing at all, null if other configuration set
+	 */
+	public static function isIndexingEnabled($node) {
+		if ($node) {
+			$conf = $node->getNodeType()->getConfiguration('search');
+			if (is_bool($conf)) return $conf;
+		}
+		return null;
 	}
 }

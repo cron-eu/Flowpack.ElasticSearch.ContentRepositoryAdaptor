@@ -11,17 +11,31 @@ namespace Flowpack\ElasticSearch\ContentRepositoryAdaptor\Command;
  * The TYPO3 project - inspiring people to share!                                                   *
  *                                                                                                  */
 
+use CRON\CRLib\Utility\NodeIterator;
+use CRON\CRLib\Utility\NodeQuery;
+use Flowpack\ElasticSearch\ContentRepositoryAdaptor\Indexer\NodeIndexer;
+use Sortable\Fixture\Node;
 use TYPO3\Flow\Annotations as Flow;
 use TYPO3\Flow\Cli\CommandController;
 use Flowpack\ElasticSearch\ContentRepositoryAdaptor\Mapping\NodeTypeMappingBuilder;
+use TYPO3\TYPO3CR\Domain\Model\NodeData;
+use TYPO3\TYPO3CR\Domain\Model\NodeInterface;
+use TYPO3\TYPO3CR\Domain\Model\NodeType;
+use TYPO3\TYPO3CR\Domain\Service\NodeTypeManager;
 use TYPO3\TYPO3CR\Search\Indexer\NodeIndexingManager;
 
 /**
  * Provides CLI features for index handling
  *
+ * @property \TYPO3\TYPO3CR\Domain\Service\Context context
  * @Flow\Scope("singleton")
  */
 class NodeIndexCommandController extends CommandController {
+
+	/**
+	 * @var string NodeType filter
+	 */
+	private $nodeTypeFilter = null;
 
 	/**
 	 * @Flow\Inject
@@ -93,6 +107,12 @@ class NodeIndexCommandController extends CommandController {
 	protected $logger;
 
 	/**
+	 * @Flow\Inject
+	 * @var NodeTypeManager
+	 */
+	protected $nodeTypeManager;
+
+	/**
 	 * Show the mapping which would be sent to the ElasticSearch server
 	 *
 	 * @return void
@@ -134,13 +154,29 @@ class NodeIndexCommandController extends CommandController {
 	 * @param integer $limit Amount of nodes to index at maximum
 	 * @param boolean $update if TRUE, do not throw away the index at the start. Should *only be used for development*.
 	 * @param string $workspace name of the workspace which should be indexed
+	 * @param string $type node type filter, e.g. TYPO3.Neos:Document
 	 * @return void
 	 */
-	public function buildCommand($limit = NULL, $update = FALSE, $workspace = NULL) {
+	public function buildCommand($limit = NULL, $update = FALSE, $workspace = NULL, $type = null) {
+
+		if ($type) {
+			$this->nodeTypeFilter = $type;
+		} else {
+			// filter out all NodeTypes which aren't configured for indexing to speedup things
+			$nodeTypesToIndex = array_filter($this->nodeTypeManager->getNodeTypes(false), function($nodeType) {
+				/** @var NodeType $nodeType */
+				return $nodeType->getConfiguration('search') !== false;
+			});
+			$this->nodeTypeFilter = array_keys($nodeTypesToIndex);
+		}
 
 		if ($update === TRUE) {
 			$this->logger->log('!!! Update Mode (Development) active!', LOG_INFO);
 		} else {
+			if ($type && !$update) {
+				$this->outputLine('NodeType filter can only be used with the --update option');
+				$this->quit(1);
+			}
 			$this->nodeIndexer->setIndexNamePostfix(time());
 			$this->nodeIndexer->getIndex()->create();
 			$this->logger->log('Created index ' . $this->nodeIndexer->getIndexName(), LOG_INFO);
@@ -161,9 +197,13 @@ class NodeIndexCommandController extends CommandController {
 		$this->countedIndexedNodes = 0;
 
 		if ($workspace === NULL) {
-			foreach ($this->workspaceRepository->findAll() as $workspace) {
-				$this->indexWorkspace($workspace->getName());
-
+			// get all workspace names upfront so we can do a clearState() while processing them
+			$workspaceNames = array_map(
+				  function($workspace) { return $workspace->getName(); }
+				, $this->workspaceRepository->findAll()->toArray()
+			);
+			foreach ($workspaceNames as $workspaceName) {
+				$this->indexWorkspace($workspaceName);
 				$count = $count + $this->countedIndexedNodes;
 			}
 		} else {
@@ -224,10 +264,28 @@ class NodeIndexCommandController extends CommandController {
 	 * @return void
 	 */
 	protected function indexWorkspaceWithDimensions($workspaceName, array $dimensions = array()) {
-		$context = $this->contextFactory->create(array('workspaceName' => $workspaceName, 'dimensions' => $dimensions));
+		$context = $this->contextFactory->create(['workspaceName' => $workspaceName, 'dimensions' => $dimensions]);
+		$this->context = $context;
 		$rootNode = $context->getRootNode();
 
-		$this->traverseNodes($rootNode);
+		$nodeQuery = new NodeQuery($this->nodeTypeFilter, $rootNode->getPath(), null, $workspaceName);
+		$total = $nodeQuery->getCount();
+
+		$query = $nodeQuery->getQuery();
+		if ($this->limit) $query->setMaxResults($this->limit);
+
+		$this->outputLine('Processing workspace: "%s" ...', [$workspaceName]);
+		$this->output->progressStart($this->limit ? min($this->limit, $total) : $total);
+
+		foreach (new NodeIterator($query) as $node) {
+			if ($node && NodeIndexer::isIndexingEnabled($node) !== false) {
+				$this->nodeIndexingManager->indexNode($node);
+				$this->indexedNodes++;
+			}
+			$this->output->progressAdvance();
+		}
+
+		$this->output->progressFinish();
 
 		if ($dimensions === array()) {
 			$this->outputLine('Workspace "' . $workspaceName . '" without dimensions done. (Indexed ' . $this->indexedNodes . ' nodes)');
@@ -237,24 +295,6 @@ class NodeIndexCommandController extends CommandController {
 
 		$this->countedIndexedNodes = $this->countedIndexedNodes + $this->indexedNodes;
 		$this->indexedNodes = 0;
-	}
-
-	/**
-	 * @param \TYPO3\TYPO3CR\Domain\Model\NodeInterface $currentNode
-	 * @return void
-	 */
-	protected function traverseNodes(\TYPO3\TYPO3CR\Domain\Model\NodeInterface $currentNode) {
-
-		if ($this->limit !== NULL && $this->indexedNodes > $this->limit) {
-			return;
-		}
-
-		$this->nodeIndexingManager->indexNode($currentNode);
-		$this->indexedNodes++;
-
-		foreach ($currentNode->getChildNodes() as $childNode) {
-			$this->traverseNodes($childNode);
-		}
 	}
 
 	/**
