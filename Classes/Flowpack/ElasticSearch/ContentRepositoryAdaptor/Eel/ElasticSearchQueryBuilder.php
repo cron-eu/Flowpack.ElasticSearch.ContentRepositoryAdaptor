@@ -622,7 +622,7 @@ class ElasticSearchQueryBuilder implements QueryBuilderInterface, ProtectedConte
 	 * @param $query
 	 * @return mixed
 	 */
-	protected function escapeQueryString($query) {
+	public static function escapeQueryString($query) {
 		// Lucene characters that need escaping with \ are + - && || ! ( ) { } [ ] ^ " ~ * ? : \
 
 		// note: we want to explicitly allow the * to be used
