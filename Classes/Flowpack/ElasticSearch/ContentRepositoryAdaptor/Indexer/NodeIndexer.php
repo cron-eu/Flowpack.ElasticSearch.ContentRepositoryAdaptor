@@ -110,6 +110,18 @@ class NodeIndexer extends AbstractNodeIndexer {
 	}
 
 	/**
+	 * Something like getContextPath() but using the Node Identifier instead of the Path
+	 *
+	 * @param NodeInterface $node
+	 * @return string
+	 */
+	protected function getContextIdentifier(NodeInterface $node) {
+		$contextPath = $node->getContextPath();
+
+		return $node->getIdentifier() . substr($contextPath, strpos($contextPath, '@'));
+	}
+
+	/**
 	 * index this node, and add it to the current bulk request.
 	 *
 	 * @param NodeInterface $node
@@ -121,7 +133,7 @@ class NodeIndexer extends AbstractNodeIndexer {
 
 		if ($this->isIndexingEnabled($node) === false) return;
 
-		$contextPath = $node->getContextPath();
+		$contextIdentifier = $this->getContextIdentifier($node);
 
 		if ($this->settings['indexAllWorkspaces'] === FALSE) {
 			// we are only supposed to index the live workspace.
@@ -138,24 +150,23 @@ class NodeIndexer extends AbstractNodeIndexer {
 
 
 		if ($targetWorkspaceName !== NULL) {
-			$contextPath = str_replace($node->getContext()->getWorkspace()->getName(), $targetWorkspaceName, $contextPath);
+			$contextIdentifier = str_replace($node->getContext()->getWorkspace()->getName(), $targetWorkspaceName, $contextIdentifier);
 		}
 
-		$contextPathHash = sha1($contextPath);
 		$nodeType = $node->getNodeType();
 
 		$mappingType = $this->getIndex()->findType(NodeTypeMappingBuilder::convertNodeTypeNameToMappingName($nodeType));
 
-		// Remove document with the same contextPathHash but different NodeType, required after NodeType change
-		$this->logger->log(sprintf('NodeIndexer: Removing node %s from index (if node type changed from %s). ID: %s',
-			$contextPath, $node->getNodeType()->getName(), $contextPathHash), LOG_DEBUG, NULL, 'ElasticSearch (CR)');
+		// Remove document with the same contextIdentifierHash but different NodeType, required after NodeType change
+		$this->logger->log(sprintf('NodeIndexer: Removing %s from index (if node type changed from %s). ID: %s',
+			$contextIdentifier, $node->getNodeType()->getName(), $node), LOG_DEBUG, NULL, 'ElasticSearch (CR)');
 
 		$this->getIndex()->request('DELETE', '/_query', array(), json_encode([
 			'query' => [
 				'bool' => [
 					'must' => [
 						'ids' => [
-							'values' => [ $contextPathHash ]
+							'values' => [ $contextIdentifier ]
 						]
 					],
 					'must_not' => [
@@ -169,21 +180,21 @@ class NodeIndexer extends AbstractNodeIndexer {
 
 		if ($node->isRemoved()) {
 			// TODO: handle deletion from the fulltext index as well
-			$mappingType->deleteDocumentById($contextPathHash);
-			$this->logger->log(sprintf('NodeIndexer: Removed node %s from index (node flagged as removed). ID: %s', $contextPath, $contextPathHash), LOG_DEBUG, NULL, 'ElasticSearch (CR)');
+			$mappingType->deleteDocumentById($contextIdentifier);
+			$this->logger->log(sprintf('NodeIndexer: Removed %s from index (node flagged as removed). ID: %s', $node, $contextIdentifier), LOG_DEBUG, NULL, 'ElasticSearch (CR)');
 
 			return;
 		}
 
 		$logger = $this->logger;
 		$fulltextIndexOfNode = array();
-		$nodePropertiesToBeStoredInIndex = $this->extractPropertiesAndFulltext($node, $fulltextIndexOfNode, function($propertyName) use ($logger, $contextPathHash) {
-			$logger->log(sprintf('NodeIndexer (%s) - Property "%s" not indexed because no configuration found.', $contextPathHash, $propertyName), LOG_DEBUG, NULL, 'ElasticSearch (CR)');
+		$nodePropertiesToBeStoredInIndex = $this->extractPropertiesAndFulltext($node, $fulltextIndexOfNode, function($propertyName) use ($logger, $contextIdentifier) {
+			$logger->log(sprintf('NodeIndexer (%s) - Property "%s" not indexed because no configuration found.', $contextIdentifier, $propertyName), LOG_DEBUG, NULL, 'ElasticSearch (CR)');
 		});
 
 		$document = new ElasticSearchDocument($mappingType,
 			$nodePropertiesToBeStoredInIndex,
-			$contextPathHash
+			$contextIdentifier
 		);
 
 		$documentData = $document->getData();
@@ -243,7 +254,7 @@ class NodeIndexer extends AbstractNodeIndexer {
 		}
 
 		$this->logger->log(sprintf('NodeIndexer: Added / updated node [%s] %s. ID: %s',
-			$nodeType->getName(), $contextPath, $contextPathHash), LOG_DEBUG, NULL, 'ElasticSearch (CR)');
+			$nodeType->getName(), $contextIdentifier, $contextIdentifier), LOG_DEBUG, NULL, 'ElasticSearch (CR)');
 	}
 
 	/**
@@ -269,14 +280,13 @@ class NodeIndexer extends AbstractNodeIndexer {
 			}
 		}
 
-		$closestFulltextNodeContextPath = str_replace($closestFulltextNode->getContext()->getWorkspace()->getName(), 'live', $closestFulltextNode->getContextPath());
-		$closestFulltextNodeContextPathHash = sha1($closestFulltextNodeContextPath);
+		$closestFulltextNodeContextIdentifier = str_replace($closestFulltextNode->getContext()->getWorkspace()->getName(), 'live', $this->getContextIdentifier($closestFulltextNode));
 
 		$this->currentBulkRequest[] = array(
 			array(
 				'update' => array(
 					'_type' => NodeTypeMappingBuilder::convertNodeTypeNameToMappingName($closestFulltextNode->getNodeType()->getName()),
-					'_id' => $closestFulltextNodeContextPathHash
+					'_id' => $closestFulltextNodeContextIdentifier
 				)
 			),
 			// http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/docs-update.html
@@ -356,18 +366,16 @@ class NodeIndexer extends AbstractNodeIndexer {
 		}
 
 		// TODO: handle deletion from the fulltext index as well
-		$identifier = sha1($node->getContextPath());
-
 		$this->currentBulkRequest[] = array(
 			array(
 				'delete' => array(
 					'_type' => NodeTypeMappingBuilder::convertNodeTypeNameToMappingName($node->getNodeType()),
-					'_id' => $identifier
+					'_id' => $this->getContextIdentifier($node),
 				)
 			)
 		);
 
-		$this->logger->log(sprintf('NodeIndexer: Removed node %s from index (node actually removed). Persistence ID: %s', $node->getContextPath(), $identifier), LOG_DEBUG, NULL, 'ElasticSearch (CR)');
+		$this->logger->log(sprintf('NodeIndexer: Removed %s from index (node actually removed).', $node), LOG_DEBUG, NULL, 'ElasticSearch (CR)');
 	}
 
 	/**
