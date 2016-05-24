@@ -110,30 +110,37 @@
             'h1':
               type: string
               include_in_all: true
+              term_vector: 'with_positions_offsets'
               boost: 20
             'h2':
               type: string
               include_in_all: true
+              term_vector: 'with_positions_offsets'
               boost: 12
             'h3':
               type: string
               include_in_all: true
+              term_vector: 'with_positions_offsets'
               boost: 10
             'h4':
               type: string
               include_in_all: true
+              term_vector: 'with_positions_offsets'
               boost: 5
             'h5':
               type: string
               include_in_all: true
+              term_vector: 'with_positions_offsets'
               boost: 3
             'h6':
               type: string
               include_in_all: true
+              term_vector: 'with_positions_offsets'
               boost: 2
             'text':
               type: string
               include_in_all: true
+              term_vector: 'with_positions_offsets'
               boost: 1
 
 'TYPO3.Neos.NodeTypes:Text':
