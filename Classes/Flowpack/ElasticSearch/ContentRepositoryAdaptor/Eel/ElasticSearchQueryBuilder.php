@@ -635,7 +635,7 @@ class ElasticSearchQueryBuilder implements QueryBuilderInterface, ProtectedConte
 		));
 
 		// We automatically enable result highlighting when doing fulltext searches. It is up to the user to use this information or not use it.
-		return $this->highlight(150, 2);
+		return $this->highlight(300, 2);
 	}
 
 	/**
@@ -657,7 +657,10 @@ class ElasticSearchQueryBuilder implements QueryBuilderInterface, ProtectedConte
 					'__fulltext*' => array(
 						'fragment_size' => $fragmentSize,
 						'no_match_size' => $fragmentSize,
-						'number_of_fragments' => $fragmentCount
+						'number_of_fragments' => $fragmentCount,
+						'boundary_max_scan' => 50,
+						'fragment_offset' => 50,
+						'boundary_chars' => '.!?:'
 					)
 				)
 			);
