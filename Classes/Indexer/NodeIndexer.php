@@ -172,6 +172,35 @@ class NodeIndexer extends AbstractNodeIndexer implements BulkNodeIndexerInterfac
     }
 
     /**
+     * Something like getContextPath() but using the Node Identifier instead of the Path
+     *
+     * Result is a string like <identifier>@<workspace>;<dimensionsList>.
+     * @see NodeInterface::getContextPath()
+     *
+     * @param NodeInterface $node
+     * @return string
+     */
+    protected static function getContextIdentifier(NodeInterface $node)
+    {
+        $contextIdentifier = $node->getIdentifier();
+
+        $context = $node->getContext();
+
+        $workspaceName = $context->getWorkspace()->getName();
+        $contextIdentifier .= '@' . $workspaceName;
+
+        if ($context->getDimensions() !== array()) {
+            $contextIdentifier .= ';';
+            foreach ($context->getDimensions() as $dimensionName => $dimensionValues) {
+                $contextIdentifier .= $dimensionName . '=' . implode(',', $dimensionValues) . '&';
+            }
+            $contextIdentifier = substr($contextIdentifier, 0, -1);
+        }
+
+        return $contextIdentifier;
+    }
+
+    /**
      * Index this node, and add it to the current bulk request.
      *
      * @param NodeInterface $node
@@ -278,13 +307,13 @@ class NodeIndexer extends AbstractNodeIndexer implements BulkNodeIndexerInterfac
      */
     protected function calculateDocumentIdentifier(NodeInterface $node, $targetWorkspaceName = null): string
     {
-        $contextPath = $node->getContextPath();
+        $contextIdentifier = self::getContextIdentifier($node);
 
         if ($targetWorkspaceName !== null) {
-            $contextPath = str_replace($node->getContext()->getWorkspace()->getName(), $targetWorkspaceName, $contextPath);
+            $contextIdentifier = str_replace($node->getContext()->getWorkspace()->getName(), $targetWorkspaceName, $contextIdentifier);
         }
 
-        return sha1($contextPath);
+        return sha1($contextIdentifier);
     }
 
     /**
