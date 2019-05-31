@@ -172,6 +172,35 @@ class NodeIndexer extends AbstractNodeIndexer implements BulkNodeIndexerInterfac
     }
 
     /**
+     * Something like getContextPath() but using the Node Identifier instead of the Path
+     *
+     * Result is a string like <identifier>@<workspace>;<dimensionsList>.
+     * @see NodeInterface::getContextPath()
+     *
+     * @param NodeInterface $node
+     * @return string
+     */
+    protected static function getContextIdentifier(NodeInterface $node)
+    {
+        $contextIdentifier = $node->getIdentifier();
+
+        $context = $node->getContext();
+
+        $workspaceName = $context->getWorkspace()->getName();
+        $contextIdentifier .= '@' . $workspaceName;
+
+        if ($context->getDimensions() !== array()) {
+            $contextIdentifier .= ';';
+            foreach ($context->getDimensions() as $dimensionName => $dimensionValues) {
+                $contextIdentifier .= $dimensionName . '=' . implode(',', $dimensionValues) . '&';
+            }
+            $contextIdentifier = substr($contextIdentifier, 0, -1);
+        }
+
+        return $contextIdentifier;
+    }
+
+    /**
      * Index this node, and add it to the current bulk request.
      *
      * @param NodeInterface $node
@@ -200,7 +229,7 @@ class NodeIndexer extends AbstractNodeIndexer implements BulkNodeIndexerInterfac
                 $contextPath = str_replace($node->getContext()->getWorkspace()->getName(), $targetWorkspaceName, $contextPath);
             }
 
-            $documentIdentifier = $this->calculateDocumentIdentifier($node, $targetWorkspaceName);
+            $documentIdentifier = self::calculateDocumentIdentifier($node, $targetWorkspaceName);
             $nodeType = $node->getNodeType();
 
             $mappingType = $this->getIndex()->findType($this->nodeTypeMappingBuilder->convertNodeTypeNameToMappingName($nodeType->getName()));
@@ -243,9 +272,15 @@ class NodeIndexer extends AbstractNodeIndexer implements BulkNodeIndexerInterfac
         $handleNode = function (NodeInterface $node, Context $context) use ($targetWorkspaceName, $indexer) {
             $nodeFromContext = $context->getNodeByIdentifier($node->getIdentifier());
             if ($nodeFromContext instanceof NodeInterface) {
+                if ($node->getPath() !== $nodeFromContext->getPath()) {
+                    // If the node from context does have a different path, purge the context cache and re-fetch
+                    // TODO: find the root cause for this bug and fix the node cache invalidation logic.
+                    $context->getFirstLevelNodeCache()->flush();
+                    $nodeFromContext = $context->getNodeByIdentifier($node->getIdentifier());
+                }
                 $indexer($nodeFromContext, $targetWorkspaceName);
             } else {
-                $documentIdentifier = $this->calculateDocumentIdentifier($node, $targetWorkspaceName);
+                $documentIdentifier = self::calculateDocumentIdentifier($node, $targetWorkspaceName);
                 if ($node->isRemoved()) {
                     $this->removeNode($node, $context->getWorkspaceName());
                     $this->logger->log(sprintf('NodeIndexer (%s): Removed node with identifier %s, no longer in workspace %s', $documentIdentifier, $node->getIdentifier(), $context->getWorkspaceName()), LOG_DEBUG, null, 'ElasticSearch (CR)');
@@ -276,15 +311,15 @@ class NodeIndexer extends AbstractNodeIndexer implements BulkNodeIndexerInterfac
      * @return string
      * @throws \Neos\Flow\Persistence\Exception\IllegalObjectTypeException
      */
-    protected function calculateDocumentIdentifier(NodeInterface $node, $targetWorkspaceName = null): string
+    public static function calculateDocumentIdentifier(NodeInterface $node, $targetWorkspaceName = null): string
     {
-        $contextPath = $node->getContextPath();
+        $contextIdentifier = self::getContextIdentifier($node);
 
         if ($targetWorkspaceName !== null) {
-            $contextPath = str_replace($node->getContext()->getWorkspace()->getName(), $targetWorkspaceName, $contextPath);
+            $contextIdentifier = str_replace($node->getContext()->getWorkspace()->getName(), $targetWorkspaceName, $contextIdentifier);
         }
 
-        return sha1($contextPath);
+        return sha1($contextIdentifier);
     }
 
     /**
@@ -310,7 +345,7 @@ class NodeIndexer extends AbstractNodeIndexer implements BulkNodeIndexerInterfac
             }
         }
 
-        $documentIdentifier = $this->calculateDocumentIdentifier($node, $targetWorkspaceName);
+        $documentIdentifier = self::calculateDocumentIdentifier($node, $targetWorkspaceName);
 
         $this->currentBulkRequest[] = $this->documentDriver->delete($node, $documentIdentifier);
         $this->currentBulkRequest[] = $this->indexerDriver->fulltext($node, [], $targetWorkspaceName);
