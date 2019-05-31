@@ -16,6 +16,7 @@ namespace Flowpack\ElasticSearch\ContentRepositoryAdaptor\Driver\Version5;
 
 use Flowpack\ElasticSearch\ContentRepositoryAdaptor\Driver\AbstractIndexerDriver;
 use Flowpack\ElasticSearch\ContentRepositoryAdaptor\Driver\IndexerDriverInterface;
+use Flowpack\ElasticSearch\ContentRepositoryAdaptor\Indexer\NodeIndexer;
 use Flowpack\ElasticSearch\Domain\Model\Document as ElasticSearchDocument;
 use Neos\ContentRepository\Domain\Model\NodeInterface;
 use Neos\Flow\Annotations as Flow;
@@ -88,11 +89,7 @@ class IndexerDriver extends AbstractIndexerDriver implements IndexerDriverInterf
             return [];
         }
 
-        $closestFulltextNodeContextPath = $closestFulltextNode->getContextPath();
-        if ($targetWorkspaceName !== null) {
-            $closestFulltextNodeContextPath = str_replace($node->getContext()->getWorkspace()->getName(), $targetWorkspaceName, $closestFulltextNodeContextPath);
-        }
-        $closestFulltextNodeDocumentIdentifier = sha1($closestFulltextNodeContextPath);
+        $closestFulltextNodeDocumentIdentifier = NodeIndexer::calculateDocumentIdentifier($closestFulltextNode);
 
         if ($closestFulltextNode->isRemoved()) {
             // fulltext root is removed, abort silently...
@@ -101,7 +98,7 @@ class IndexerDriver extends AbstractIndexerDriver implements IndexerDriverInterf
             return [];
         }
 
-        $this->logger->log(sprintf('NodeIndexer (%s): Updated fulltext index for %s (%s)', $closestFulltextNodeDocumentIdentifier, $closestFulltextNodeContextPath, $closestFulltextNode->getIdentifier()), LOG_DEBUG, null, 'ElasticSearch (CR)');
+        $this->logger->log(sprintf('NodeIndexer (%s): Updated fulltext index for %s (%s)', $closestFulltextNodeDocumentIdentifier, $closestFulltextNode->getPath(), $closestFulltextNode->getIdentifier()), LOG_DEBUG, null, 'ElasticSearch (CR)');
 
         $upsertFulltextParts = [];
         if (!empty($fulltextIndexOfNode)) {
