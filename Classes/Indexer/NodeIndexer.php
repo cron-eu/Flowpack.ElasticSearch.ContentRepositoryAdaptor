@@ -229,7 +229,7 @@ class NodeIndexer extends AbstractNodeIndexer implements BulkNodeIndexerInterfac
                 $contextPath = str_replace($node->getContext()->getWorkspace()->getName(), $targetWorkspaceName, $contextPath);
             }
 
-            $documentIdentifier = $this->calculateDocumentIdentifier($node, $targetWorkspaceName);
+            $documentIdentifier = self::calculateDocumentIdentifier($node, $targetWorkspaceName);
             $nodeType = $node->getNodeType();
 
             $mappingType = $this->getIndex()->findType($this->nodeTypeMappingBuilder->convertNodeTypeNameToMappingName($nodeType->getName()));
@@ -280,7 +280,7 @@ class NodeIndexer extends AbstractNodeIndexer implements BulkNodeIndexerInterfac
                 }
                 $indexer($nodeFromContext, $targetWorkspaceName);
             } else {
-                $documentIdentifier = $this->calculateDocumentIdentifier($node, $targetWorkspaceName);
+                $documentIdentifier = self::calculateDocumentIdentifier($node, $targetWorkspaceName);
                 if ($node->isRemoved()) {
                     $this->removeNode($node, $context->getWorkspaceName());
                     $this->logger->log(sprintf('NodeIndexer (%s): Removed node with identifier %s, no longer in workspace %s', $documentIdentifier, $node->getIdentifier(), $context->getWorkspaceName()), LOG_DEBUG, null, 'ElasticSearch (CR)');
@@ -311,7 +311,7 @@ class NodeIndexer extends AbstractNodeIndexer implements BulkNodeIndexerInterfac
      * @return string
      * @throws \Neos\Flow\Persistence\Exception\IllegalObjectTypeException
      */
-    protected function calculateDocumentIdentifier(NodeInterface $node, $targetWorkspaceName = null): string
+    public static function calculateDocumentIdentifier(NodeInterface $node, $targetWorkspaceName = null): string
     {
         $contextIdentifier = self::getContextIdentifier($node);
 
@@ -345,7 +345,7 @@ class NodeIndexer extends AbstractNodeIndexer implements BulkNodeIndexerInterfac
             }
         }
 
-        $documentIdentifier = $this->calculateDocumentIdentifier($node, $targetWorkspaceName);
+        $documentIdentifier = self::calculateDocumentIdentifier($node, $targetWorkspaceName);
 
         $this->currentBulkRequest[] = $this->documentDriver->delete($node, $documentIdentifier);
         $this->currentBulkRequest[] = $this->indexerDriver->fulltext($node, [], $targetWorkspaceName);
