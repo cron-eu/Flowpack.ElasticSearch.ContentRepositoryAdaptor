@@ -98,8 +98,6 @@ class IndexerDriver extends AbstractIndexerDriver implements IndexerDriverInterf
             return [];
         }
 
-        $this->logger->log(sprintf('NodeIndexer (%s): Updated fulltext index for %s (%s)', $closestFulltextNodeDocumentIdentifier, $closestFulltextNodeContextPath, $closestFulltextNode->getIdentifier()), LOG_DEBUG, null, 'ElasticSearch (CR)');
-
         $upsertFulltextParts = [];
         if (!empty($fulltextIndexOfNode)) {
             $upsertFulltextParts[$node->getIdentifier()] = $fulltextIndexOfNode;
